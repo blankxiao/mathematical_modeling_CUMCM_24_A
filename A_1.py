@@ -175,11 +175,6 @@ if __name__ == '__main__':
                 cur_alpha = get_alpha_0(t)
                 cur_r = get_r_0(cur_alpha)
                 cur_v = loong_head_speed
-                cur_v = get_v_i(v_i_pre=v_i_pre, r_i_pre=r_i_pre, r_i=cur_r)
-            else:
-                cur_alpha = get_alpha_0(t)
-                cur_r = get_r_0(cur_alpha)
-                cur_v = loong_head_speed
 
             cur_x, cur_y = get_x_y(alpha=cur_alpha, r=cur_r)
             
