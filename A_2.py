@@ -5,7 +5,6 @@
 @Desc: A_2 求出碰撞时间 和当时各个部分的状态(位置和速度)
 主要是求碰撞时间 然后代入A_1模型 得出碰撞后各个部分的位置和速度
 """
-import sys
 
 import pandas as pd
 import numpy as np
@@ -69,28 +68,29 @@ def forward_vaild(r_0: int, r_1: int, spiral_d: int):
     """
     @param r_0: 龙头极径
     @param r_1: 第一节龙身极径
+    返回是否是锐角
     """
-    detal_x = (r_0 * sp.cos(2 * np.pi * r_0 / spiral_d) - r_1 * sp.cos(2 * np.pi * r_1 / spiral_d))
-    dx = sp.cos(2 * np.pi * r_0 / spiral_d - 2 * np.pi * r_0 / spiral_d * sp.sin(2 * np.pi * r_0 / spiral_d))
-    detal_y = r_0 * sp.sin(2 * np.pi * r_0 / spiral_d) - r_1 * sp.sin(2 * np.pi * r_1 / spiral_d)
-    dy = sp.sin(2 * np.pi * r_0 / spiral_d + 2 * np.pi * r_0 / spiral_d * sp.cos(2 * np.pi * r_0 / spiral_d))
+    theta_0 = 2 * np.pi * r_0 / spiral_d
+    theta_1 = 2 * np.pi * r_1 / spiral_d
+
+    detal_x = (r_0 * sp.cos(theta_0) - r_1 * sp.cos(theta_1))
+    dx = sp.cos(theta_0 - theta_0 * sp.sin(theta_0))
+    detal_y = r_0 * sp.sin(theta_0) - r_1 * sp.sin(theta_1)
+    dy = sp.sin(theta_0 + theta_0 * sp.cos(theta_0))
     return  detal_x * dx + detal_y * dy >= 0
 
-
-
-
-def are_collinear(A, B, C, atol=1e-4):
+def are_collinear(A, B, C, atol=1e-1):
     """
     判断三个极坐标点 A、B、C 是否共线
-    :param A: 点 A 的极坐标 (r_A, theta_A)
-    :param B: 点 B 的极坐标 (r_B, theta_B)
-    :param C: 点 C 的极坐标 (r_C, theta_C)
+    :param A: 点 A 的直角坐标
+    :param B: 点 B 的直角坐标
+    :param C: 点 C 的直角坐标
     :return: 如果 A、B、C 共线，返回 True
     """
     # 将极坐标转换为笛卡尔坐标
-    x_A, y_A = get_x_y(r=A[0], alpha=A[1])
-    x_B, y_B = get_x_y(r=B[0], alpha=B[1])
-    x_C, y_C = get_x_y(r=C[0], alpha=C[1])
+    x_A, y_A = [A[0], A[1]]
+    x_B, y_B = [B[0], B[1]]
+    x_C, y_C = (C[0], C[1])
     
     # 计算向量 AB 和 AC
     vector_AB = (x_B - x_A, y_B - y_A)
@@ -99,24 +99,31 @@ def are_collinear(A, B, C, atol=1e-4):
     # 计算向量 AB 和 AC 的叉积
     cross_product = vector_AB[0] * vector_AC[1] - vector_AB[1] * vector_AC[0]
     # 共线 且 A在BC之间
-    return np.isclose(cross_product, 0, atol=atol) and (x_A - x_B) * (x_A - x_C) <= 0
+    print(cross_product, (x_A - x_B) * (x_A - x_C))
+    return np.isclose(cross_product, 0, atol=atol) and np.isclose((x_A - x_B) * (x_A - x_C), 0, atol=atol * 10)
 
 
-def get_min_t(back_time=100, point_num=10):
+def get_min_t(num_point=10):
     """
     第一次碰撞的时间
+    认为碰撞仅存在2-num_point 这些点
     """
 
     end = get_end_time()
-    # print("到达零点时间", end)
+    print("龙头到达零点的时间", end)
+    time_range = np.arange(end - 100, end - 10, 0.1).tolist()
 
-    # 认为碰撞仅存在2-10 这些点
-    time_range = np.arange(end - back_time, end, 0.001).tolist()
-    df_rav = pd.DataFrame(index=pd.MultiIndex.from_product([range(10), ['r', 'alpha', "v"]]), columns=time_range)
+    df_rav = pd.DataFrame(index=pd.MultiIndex.from_product([range(num_point), ['r', 'alpha', "v"]]), columns=time_range)
+
+    df_xyv = pd.DataFrame(index=pd.MultiIndex.from_product([range(num_point), ['x', 'y', "v"]]), columns=time_range)
+
+    df_coner = pd.DataFrame(index=pd.MultiIndex.from_product([range(num_point), ['B_i', 'B_i_pre', "C_0"]]), columns=time_range)
+
+    crash_t = 0
+    crash = False
 
     for t in time_range:
-        print(t)
-        for point_index in range(point_num):
+        for point_index in range(num_point):
             if point_index != 0:
                 r_i_pre=df_rav[t][point_index - 1, 'r']
                 v_i_pre=df_rav[t][point_index - 1, 'v']
@@ -137,8 +144,11 @@ def get_min_t(back_time=100, point_num=10):
             df_rav.at[(point_index, 'alpha'), t] = cur_alpha
             df_rav.at[(point_index, 'v'), t] = cur_v
 
-
-            if point_index > 4:
+            df_xyv.at[(point_index, 'x'), t] = cur_x
+            df_xyv.at[(point_index, 'y'), t] = cur_y
+            df_xyv.at[(point_index, 'v'), t] = cur_v
+            
+            if point_index > 2:
                 alpha_0 = df_rav.at[(0, 'alpha'), t]
                 r_0 = df_rav.at[(0, 'r'), t]
 
@@ -149,12 +159,22 @@ def get_min_t(back_time=100, point_num=10):
                 r_i_pre = df_rav.at[(point_index - 1, 'r'), t]
 
                 B_i, B_i_pre, C_0 = get_pos_of_corner(alpha_0=alpha_0, r_0=r_0, alpha_1=alpha_1, r_1=r_1, alpha_i_pre=alpha_i_pre, r_i_pre=r_i_pre, alpha_i=cur_alpha, r_i=cur_r )
+                df_coner.at[(point_index, 'B_i'), t] = B_i
+                df_coner.at[(point_index, 'B_i_pre'), t] = B_i_pre
+                df_coner.at[(point_index, 'C_0'), t] = C_0
                 if are_collinear(B_i, B_i_pre, C_0):
                     print(f'{t}时刻发现碰撞点 r_0为{r_0}')
-                    return t
-        if not forward_vaild(r_0=df_rav[t][0, 'r'], r_1=df_rav[t][1, 'r'], spiral_d=0.55):
-            print(f'{t}时刻 r_0 r_1为 锐角')
-            return t
+                    crash = True
+                    break
+        # if forward_vaild(r_0=df_rav[t][0, 'r'], r_1=df_rav[t][1, 'r'], spiral_d=0.55):
+        #     print(f'{t}时刻 r_0 r_1为 锐角')
+        #     crash = True
+        #     break
+        if crash:
+            crash_t = t
+            return crash_t
+    # 到结束了仍然没有碰撞
+    return crash_t
 
 
 if __name__ == "__main__":
