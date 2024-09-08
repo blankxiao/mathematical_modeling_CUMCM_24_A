@@ -6,3 +6,7 @@
 
 留作纪念捏 [论文参考见](./“板凳龙”的优化设计.pdf)
 
+下载依赖
+```shell
+pip install -r requirements.txt
+```
